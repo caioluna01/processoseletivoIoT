@@ -1,6 +1,8 @@
 import time
+import machine
 from machine import Pin, ADC
 
+# Configuração dos Pinos conforme diagram.json
 PIN_LDR = 34
 PIN_BOTAO = 4
 
@@ -9,6 +11,7 @@ ldr.atten(ADC.ATTN_11DB)
 
 botao = Pin(PIN_BOTAO, Pin.IN, Pin.PULL_UP)
 
+# Mensagem inicial padronizada
 print("Contador de Producao Inicializado")
 
 LIMIAR_BLOQUEADO = 1500
@@ -36,7 +39,7 @@ while True:
         
     botao_pressionado_anterior = botao_pressionado
 
-    # 2. Leitura Não-Bloqueante do LDR
+    # 2. Leitura do LDR
     leitura = ldr.read()
 
     if estado_esteira == "LIVRE":
@@ -54,3 +57,6 @@ while True:
             if time.ticks_diff(t_atual, inicio_bloqueio_ms) >= TEMPO_MICROPARADA_MS:
                 print("Alerta: Micro-parada detectada!")
                 alerta_emitido = True
+
+    # Cede o tempo ocioso da CPU ao sistema sem pausar a simulação
+    machine.idle()
