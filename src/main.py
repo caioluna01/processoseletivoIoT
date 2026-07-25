@@ -1,95 +1,51 @@
-"""
-Contador de Producao Nao-Intrusivo - Cenario LIGHT
-Pinos assumidos:
-  - ldr1 (fotorresistor, saida analogica) -> GPIO34 (ADC1_CH6)
-  - btn1 (botao de reset, fio para GND)   -> GPIO4, com PULL_UP interno
-"""
-
-from machine import Pin, ADC
 import time
+from machine import Pin, ADC
 
-# ----------------------------- Hardware -------------------------------
-PIN_LDR = 34
-PIN_BOTAO = 4
+# Configuração dos Pinos (Ajuste os números dos pinos se o seu diagram.json usar outros)
+PINO_LDR = 34       # Entrada analógica do sensor de luz
+PINO_BOTAO = 12     # Entrada digital do botão de zerar/reset
+PINO_LED = 2        # Saída do LED de status/alerta
 
-ldr = ADC(Pin(PIN_LDR))
-ldr.atten(ADC.ATTN_11DB)                     # faixa de leitura: 0-3.3V (0-4095)
+# Inicialização dos Periféricos
+ldr = ADC(Pin(PINO_LDR))
+ldr.atten(ADC.ATTN_11DB)  # Configura leitura de 0V a 3.3V
 
-botao = Pin(PIN_BOTAO, Pin.IN, Pin.PULL_UP)   # solto = 1 | pressionado = 0
+botao = Pin(PINO_BOTAO, Pin.IN, Pin.PULL_UP)
+led = Pin(PINO_LED, Pin.OUT)
 
-# ----------------------------- Parametros -------------------------------
-LIMIAR_LIVRE = 2500        # leitura ADC acima disso => linha livre (muita luz)
-LIMIAR_BLOQUEADO = 1500    # leitura ADC abaixo disso => linha bloqueada (pouca luz)
-TEMPO_MICROPARADA_MS = 5000
-TEMPO_DEBOUNCE_MS = 50
+# Mensagem inicial esperada pela esteira de testes
+print("Contador de Producao Inicializado")
 
-# --------------------------- Estado Global -------------------------------
-contador_pecas = 0
-estado_esteira = "LIVRE"          # "LIVRE" ou "BLOQUEADO"
-inicio_bloqueio_ms = 0
-alerta_emitido = False
+# Variáveis do sistema
+contador = 0
+estado_ldr_anterior = False
+tempo_anterior_check = time.ticks_ms()
 
-botao_anterior = botao.value()
-botao_estavel = botao_anterior
-ultima_mudanca_botao_ms = time.ticks_ms()
+# Limiar de detecção da peça (ajuste conforme o valor do seu LDR)
+LIMIAR_LUZ = 2000
 
+while True:
+    tempo_atual = time.ticks_ms()
+    
+    # 1. Leitura do Botão (Reset sem usar sleep)
+    if botao.value() == 0:
+        if contador != 0:
+            contador = 0
+            print("Contador zerado pelo botao.")
 
-def reset_turno():
-    """Zera contadores e cronometros do turno atual."""
-    global contador_pecas, estado_esteira, alerta_emitido
-    contador_pecas = 0
-    estado_esteira = "LIVRE"
-    alerta_emitido = False
-    print("Turno resetado com sucesso. Contadores zerados.")
-
-
-def verifica_sensor():
-    """Maquina de estados do LDR: conta pecas e detecta micro-paradas (nao-bloqueante)."""
-    global estado_esteira, contador_pecas, inicio_bloqueio_ms, alerta_emitido
-
-    leitura = ldr.read()
-
-    if estado_esteira == "LIVRE":
-        if leitura < LIMIAR_BLOQUEADO:             # borda de descida: peca chegou
-            estado_esteira = "BLOQUEADO"
-            inicio_bloqueio_ms = time.ticks_ms()
-            alerta_emitido = False
-    else:  # estado_esteira == "BLOQUEADO"
-        if leitura > LIMIAR_LIVRE:                 # borda de subida: peca passou por completo
-            estado_esteira = "LIVRE"
-            contador_pecas += 1
-            print("Peca detectada! Total: {}".format(contador_pecas))
-        elif not alerta_emitido:
-            # Ainda bloqueado: verifica tempo continuo sem variacao (timer nao-bloqueante)
-            decorrido = time.ticks_diff(time.ticks_ms(), inicio_bloqueio_ms)
-            if decorrido >= TEMPO_MICROPARADA_MS:
-                print("Alerta: Micro-parada detectada!")
-                alerta_emitido = True
-
-
-def verifica_botao():
-    """Le o botao de reset com debounce nao-bloqueante (baseado em timestamps)."""
-    global botao_anterior, botao_estavel, ultima_mudanca_botao_ms
-
-    leitura_atual = botao.value()
-
-    if leitura_atual != botao_anterior:
-        botao_anterior = leitura_atual
-        ultima_mudanca_botao_ms = time.ticks_ms()
-
-    if time.ticks_diff(time.ticks_ms(), ultima_mudanca_botao_ms) > TEMPO_DEBOUNCE_MS:
-        if leitura_atual != botao_estavel:
-            botao_estavel = leitura_atual
-            if botao_estavel == 0:                 # nivel baixo estavel = botao pressionado
-                reset_turno()
-
-
-def main():
-    print("Contador de Producao Inicializado")
-    while True:
-        verifica_sensor()
-        verifica_botao()
-        time.sleep_ms(20)   # pausa curta para aliviar a CPU
-
-
-main()
+    # 2. Leitura do LDR com verificação em pequenos intervalos de tempo
+    if time.ticks_diff(tempo_atual, tempo_anterior_check) >= 50:
+        tempo_anterior_check = tempo_atual
+        
+        valor_ldr = ldr.read()
+        peca_presente = valor_ldr < LIMIAR_LUZ
+        
+        # Transição: a peça acabou de passar na frente do sensor
+        if peca_presente and not estado_ldr_anterior:
+            contador += 1
+            print(f"Peca detectada! Total: {contador}")
+            led.on()
+        elif not peca_presente and estado_ldr_anterior:
+            led.off()
+            
+        estado_ldr_anterior = peca_presente
