@@ -1,7 +1,6 @@
 import time
 from machine import Pin, ADC
 
-# Configuração dos Pinos (LDR = GPIO34, Botão = GPIO4)
 PIN_LDR = 34
 PIN_BOTAO = 4
 
@@ -21,13 +20,12 @@ estado_esteira = "LIVRE"
 inicio_bloqueio_ms = 0
 alerta_emitido = False
 
-# Trava para o botão não imprimir milhares de vezes
 botao_pressionado_anterior = False
 
 while True:
     t_atual = time.ticks_ms()
     
-    # --- 1. LÓGICA DO BOTÃO (Trava para imprimir APENAS UMA VEZ no clique) ---
+    # 1. Botão de Reset (Tratamento de Borda)
     botao_pressionado = (botao.value() == 0)
     
     if botao_pressionado and not botao_pressionado_anterior:
@@ -38,7 +36,7 @@ while True:
         
     botao_pressionado_anterior = botao_pressionado
 
-    # --- 2. LÓGICA DO SENSOR LDR (Máquina de Estados) ---
+    # 2. Leitura Não-Bloqueante do LDR
     leitura = ldr.read()
 
     if estado_esteira == "LIVRE":
