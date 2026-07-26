@@ -78,7 +78,14 @@ def verifica_sensor():
 
 
 def verifica_botao():
-    """Le o botao de reset com debounce nao-bloqueante (baseado em timestamps)."""
+    """Le o botao de reset com debounce nao-bloqueante (baseado em timestamps).
+
+    O reset e disparado na borda de SOLTURA (1) que sucede um pressionamento
+    estavel (0) -- ou seja, ao final de um clique completo -- e nao no instante
+    da pressao. Isso evita que a mensagem seja emitida enquanto o botao ainda
+    esta sendo mantido pressionado, garantindo que ela ocorra apos o comando
+    de soltura do cenario de teste (e nao antes dele).
+    """
     global botao_anterior, botao_estavel, ultima_mudanca_botao_ms
 
     leitura_atual = botao.value()
@@ -89,8 +96,9 @@ def verifica_botao():
 
     if time.ticks_diff(time.ticks_ms(), ultima_mudanca_botao_ms) > TEMPO_DEBOUNCE_MS:
         if leitura_atual != botao_estavel:
+            estado_anterior_estavel = botao_estavel
             botao_estavel = leitura_atual
-            if botao_estavel == 0:                  # nivel baixo estavel = botao pressionado
+            if estado_anterior_estavel == 0 and botao_estavel == 1:  # pressionado -> solto
                 reset_turno()
 
 
