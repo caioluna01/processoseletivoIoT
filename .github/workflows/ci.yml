@@ -62,6 +62,16 @@ jobs:
     needs: [detect_project, build_filesystem]
     runs-on: ubuntu-latest
     strategy:
+      # fail-fast: false -> um teste falhar nao cancela os outros do matrix
+      # (sem isso, o GitHub Actions cancela os jobs irmaos assim que qualquer
+      # um falha, mascarando resultados que ja tinham passado)
+      fail-fast: false
+      # max-parallel: 1 -> roda os 3 cenarios em sequencia, nao em paralelo.
+      # Evita abrir 3 conexoes simultaneas ao backend do Wokwi com o mesmo
+      # WOKWI_CLI_TOKEN, que pode gerar "Connection to transport closed
+      # unexpectedly: code 1006" quando o limite de simulacoes concorrentes
+      # do token e excedido.
+      max-parallel: 1
       # Define os 3 tipos de sub-testes que existem para todos os cenários
       matrix:
         test_type: [test_1, test_2, test_3]
