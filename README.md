@@ -274,18 +274,16 @@ Preencha todas as seções abaixo de forma **clara, objetiva e técnica**.
 
 ### Identificação do Candidato
 
-- **Nome completo:**
-- **GitHub:**
+- **Nome completo: Caio Gomes de Oliveira Luna**
+- **GitHub: https://github.com/caioluna01**
 
 ---
 
 ## Visão Geral da Solução
 
-Descreva, em poucas palavras:
-
-- Qual é o objetivo do seu projeto
-- O que o sistema embarcado simulado faz
-- Como o usuário interage com ele (se aplicável)
+- **Objetivo do Projeto:** Automatizar o monitoramento de uma esteira industrial simulando a contagem de peças, detecção de micro-paradas (obstruções) e controle de turno.
+- **O que o sistema faz:** Realiza a leitura contínua do sensor LDR para identificar a passagem de objetos (peças) ou bloqueios prolongados, mantendo a contagem atualizada e permitindo o reset dos contadores via botão físico.
+- **Interação do Usuário:** O usuário (ou operador) interage acionando o botão de reset para zerar a contagem de peças e os alertas do turno, além de acompanhar os logs de execução transmitidos pela serial.
 
 ---
 
@@ -301,34 +299,29 @@ Se desejar, utilize tópicos ou um pequeno diagrama em texto.
 
 ---
 
-## Componentes Utilizados na Simulação
+## Arquitetura do Sistema Embarcado
 
-Liste os principais componentes definidos no `diagram.json`, por exemplo:
-
-- Tipo de placa utilizada
-- LEDs, botões, sensores, atuadores, etc.
-- Função de cada componente no sistema
+- **Fluxo Principal (`main.py`):** Inicialização dos periféricos (ADC e GPIO) -> Configuração da interrupção de hardware (`IRQ`) no botão -> Loop infinito não-bloqueante lendo o estado dos sensores e processando eventos.
+- **Estrutura de Estados e Temporização:** 
+  - **LIVRE:** Monitora o LDR aguardando a queda de luminosidade (bloqueio).
+  - **BLOQUEADO:** Registra o tempo de início (`time.ticks_ms()`) para diferenciar uma passagem de peça de uma obstrução (micro-parada). Se o bloqueio persistir por $\ge 5000\text{ ms}$, emite o alerta. Quando a luz retorna, incrementa a contagem de peças e volta para o estado `LIVRE`.
+- **Interação de Componentes:** O LDR envia sinais analógicos via ADC para detectar peças/obstruções. O botão aciona uma interrupção imediata via hardware no pino GPIO4 para garantir que nenhum evento de reset seja perdido pelo processador.
 
 ---
 
 ## Decisões Técnicas Relevantes
 
-Explique brevemente decisões importantes tomadas durante o desenvolvimento, como:
-
-- Organização do código
-- Uso de funções, estados ou constantes
-- Estratégias para temporização ou controle lógico
+- **Tratamento de Race Conditions via IRQ:** Para evitar a perda de cliques do botão durante o processamento de loops ou leituras analógicas, o botão foi configurado com interrupção de hardware no flanco de descida (`Pin.IRQ_FALLING`). A ISR (Interrupt Service Routine) altera apenas uma flag global leve, garantindo resposta instantânea e determinística.
+- **Arquitetura Não-Bloqueante:** Substituição total de funções como `time.sleep()` por comparações de tempo com `time.ticks_ms()` e `time.ticks_diff()`. Isso evita a dessincronização com o ambiente simulado no Wokwi CI.
+- **Formatadores de Logs:** Padronização estrita de todas as saídas `print()` para corresponder exatamente à especificação exigida pelos testes automatizados (respeitando caixa alta, pontuação e acentuação).
 
 ---
 
 ## Resultados Obtidos
 
-Descreva o comportamento final do sistema:
-
-- O que funciona corretamente
-- Quais requisitos foram atendidos
-- Resultado observado na simulação do Wokwi
-
+- **Funcionamento:** O sistema executa com precisão a contagem de peças, emissão de alertas de micro-parada e o reset instantâneo via botão.
+- **Atendimento de Requisitos:** Todos os cenários simulados (contagem correta, estouro de tempo por bloqueio e reset por interrupção) foram atendidos com sucesso.
+- **Validação Wokwi CI:** A suíte completa de testes automatizados (`test_1`, `test_2` e `test_3`) foi aprovada com **100% de sucesso**  no GitHub Actions.
 ---
 
 ## Comentários Adicionais (Opcional)
